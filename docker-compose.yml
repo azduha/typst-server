@@ -1,5 +1,5 @@
 version: "3.8"
-name: dungeon-game
+name: typst-server
 
 services:
   game:
@@ -20,7 +20,7 @@ services:
     volumes:
       - /var/www/typst-templates:/app/files/templates
     labels:
-      - "traefik.http.routers.dungeon-game.rule=Host(`typst.vps.azduha.cz`)"
-      - "traefik.http.routers.dungeon-game.tls=true"
-      - "traefik.http.routers.dungeon-game.tls.certresolver=lets-encrypt"
-      - "traefik.http.services.dungeon-game.loadbalancer.server.port=5000"
+      - "traefik.http.routers.typst-server.rule=Host(`typst.vps.azduha.cz`)"
+      - "traefik.http.routers.typst-server.tls=true"
+      - "traefik.http.routers.typst-server.tls.certresolver=lets-encrypt"
+      - "traefik.http.services.typst-server.loadbalancer.server.port=5000"
