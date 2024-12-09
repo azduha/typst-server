@@ -17,6 +17,11 @@ const httpServer = http.createServer(app);
 const port = process.env.PORT || 5000;
 app.use(cors());
 
+app.use((err: any, req: any, res: any, next: any) => {
+    console.error(err.stack);
+    next(err);
+})
+
 const storage = multer.diskStorage({
     destination: function (req, file, callback) {
         callback(null, TEMP_PATH);
