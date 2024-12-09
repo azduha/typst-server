@@ -18,13 +18,9 @@ services:
       - 5000
     restart: always
     volumes:
-      - saves:/app/files/templates
+      - /var/www/typst-templates:/app/files/templates
     labels:
       - "traefik.http.routers.dungeon-game.rule=Host(`typst.vps.azduha.cz`)"
       - "traefik.http.routers.dungeon-game.tls=true"
       - "traefik.http.routers.dungeon-game.tls.certresolver=lets-encrypt"
       - "traefik.http.services.dungeon-game.loadbalancer.server.port=5000"
-
-volumes:
-  saves:
-

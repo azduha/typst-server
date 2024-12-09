@@ -10,6 +10,7 @@ dotenv.config();
 
 const FILES_PATH = "./files";
 const TEMP_PATH = FILES_PATH + "/upload";
+const TOKEN = process.env.TOKEN;
 
 const app: Express = express();
 const httpServer = http.createServer(app);
@@ -36,7 +37,12 @@ function compile(format: "pdf" | "svg") {
     return (req: Request, res: Response) => {
         const files = req.files as Express.Multer.File[];
         console.log(files);
-        const { mainFile, data } = req.body;
+        const { mainFile, data, token } = req.body;
+
+        if (token !== TOKEN) {
+            res.status(401).send("Unauthorized");
+            return;
+        }
 
         const compiler = NodeCompiler.create({
             workspace: FILES_PATH,
