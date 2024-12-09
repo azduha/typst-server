@@ -1,0 +1,31 @@
+version: "3.8"
+name: dungeon-game
+
+services:
+  game:
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM node:22-alpine
+        RUN corepack enable && corepack prepare pnpm@latest --activate
+        WORKDIR /app
+        COPY . .
+        RUN pnpm install
+        RUN pnpm run setup
+        CMD pnpm run start
+    environment:
+      - HTTPS=false
+    expose:
+      - 5000
+    restart: always
+    volumes:
+      - saves:/app/files/templates
+    labels:
+      - "traefik.http.routers.dungeon-game.rule=Host(`typst.vps.azduha.cz`)"
+      - "traefik.http.routers.dungeon-game.tls=true"
+      - "traefik.http.routers.dungeon-game.tls.certresolver=lets-encrypt"
+      - "traefik.http.services.dungeon-game.loadbalancer.server.port=5000"
+
+volumes:
+  saves:
+
