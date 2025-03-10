@@ -20,6 +20,7 @@ services:
     volumes:
       - /var/www/typst-templates:/app/files/templates
     labels:
+      - "traefik.enable=true"
       - "traefik.http.routers.typst-server.rule=Host(`typst.vps.azduha.cz`)"
       - "traefik.http.routers.typst-server.tls=true"
       - "traefik.http.routers.typst-server.tls.certresolver=lets-encrypt"
