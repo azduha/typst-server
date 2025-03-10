@@ -1,8 +1,8 @@
 version: "3.8"
-name: typst-server
+name: typst
 
 services:
-  game:
+  server:
     build:
       context: .
       dockerfile_inline: |
