@@ -19,7 +19,7 @@ services:
       - "5000:5000"
     restart: always
     volumes:
-      - /var/www/typst-templates:/app/files/templates
+      - ../templates:/app/files/templates
     networks:
       - traefik
 networks:
