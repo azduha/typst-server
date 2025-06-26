@@ -93,7 +93,7 @@ app.get("/", (req, res) => {
 app.post("/pdf", upload.array("files"), compile("pdf"));
 app.post("/svg", upload.array("files"), compile("svg"));
 
-httpServer.listen(port, () => {
+httpServer.listen(port, '0.0.0.0', () => {
     console.log(
         `⚡️[server]: Server is running at http://localhost:${port}`
     );
