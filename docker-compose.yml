@@ -25,9 +25,3 @@ services:
 networks:
   traefik:
     external: true
-        #    labels:
-        #      - "traefik.enable=true"
-        #      - "traefik.http.routers.typst-server.rule=Host(`typst.vps.azduha.cz`)"
-        #      - "traefik.http.routers.typst-server.tls=true"
-        #      - "traefik.http.routers.typst-server.tls.certresolver=lets-encrypt"
-        #      - "traefik.http.services.typst-server.loadbalancer.server.port=5000"
