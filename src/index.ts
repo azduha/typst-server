@@ -5,11 +5,13 @@ import express, { Express, Request, Response } from "express";
 import fs from "fs";
 import http from "http";
 import multer from "multer";
+import path from "path";
 
 dotenv.config();
 
 const FILES_PATH = "./files";
 const TEMP_PATH = FILES_PATH + "/upload";
+const PREBUILT_PATH = FILES_PATH + "/prebuilt";
 const TOKEN = process.env.TOKEN;
 
 const app: Express = express();
@@ -28,7 +30,7 @@ const storage = multer.diskStorage({
     },
     filename: function (req, file, callback) {
         callback(null, file.originalname);
-    }
+    },
 });
 
 const upload = multer({
@@ -51,8 +53,8 @@ function compile(format: "pdf" | "svg") {
 
         const compiler = NodeCompiler.create({
             workspace: FILES_PATH,
-            inputs: {data}
-        });   
+            inputs: { data },
+        });
 
         try {
             let result;
@@ -79,7 +81,7 @@ function compile(format: "pdf" | "svg") {
                 fs.unlinkSync(file.path);
             });
         }
-    }
+    };
 }
 
 app.post("/", (req, res) => {
@@ -93,8 +95,49 @@ app.get("/", (req, res) => {
 app.post("/pdf", upload.array("files"), compile("pdf"));
 app.post("/svg", upload.array("files"), compile("svg"));
 
-httpServer.listen(port, '0.0.0.0', () => {
-    console.log(
-        `⚡️[server]: Server is running at http://localhost:${port}`
-    );
+app.get("/pdf", (req, res) => {
+    // Get GET param file
+    const file = req.query.file as string;
+    if (!file) {
+        res.status(400).send("Bad Request");
+        return;
+    }
+
+    // Detect, if files/prebuilt/{file}.pdf exists and is newer than files/{file}.typ
+    // If not, compile files/{file}.typ to files/prebuilt/{file}.pdf
+    const mainFile = FILES_PATH + "/" + file + ".typ";
+    if (!fs.existsSync(mainFile)) {
+        res.status(404).send("Not Found");
+        return;
+    }
+
+    const prebuiltFile = PREBUILT_PATH + "/" + file + ".pdf";
+
+    if (
+        !fs.existsSync(prebuiltFile) ||
+        fs.statSync(prebuiltFile).mtime < fs.statSync(mainFile).mtime
+    ) {
+        const compiler = NodeCompiler.create({
+            workspace: FILES_PATH,
+        });
+        const result = compiler.pdf({
+            mainFilePath: mainFile,
+        });
+        // Make sure the target directory exists
+        const directory = path.dirname(prebuiltFile);
+        if (!fs.existsSync(directory)) {
+            fs.mkdirSync(directory, { recursive: true });
+        }
+
+        fs.writeFileSync(prebuiltFile, result as any);
+    }
+
+    res.setHeader("Content-Type", "application/pdf");
+    // Get absolute path of prebuiltFile
+    const absolutePath = path.resolve(prebuiltFile);
+    res.sendFile(absolutePath);
+});
+
+httpServer.listen(port, "0.0.0.0", () => {
+    console.log(`⚡️[server]: Server is running at http://localhost:${port}`);
 });
