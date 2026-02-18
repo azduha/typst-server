@@ -10,6 +10,7 @@ import path from "path";
 dotenv.config();
 
 const FILES_PATH = "./files";
+const TEPLATES_PATH = FILES_PATH + "/templates";
 const TEMP_PATH = FILES_PATH + "/upload";
 const PREBUILT_PATH = FILES_PATH + "/prebuilt";
 const TOKEN = process.env.TOKEN;
@@ -88,30 +89,44 @@ app.post("/", (req, res) => {
     res.send("Server is up!");
 });
 
-app.get("/", (req, res) => {
-    res.send("Server is up!");
-});
+// app.get("/", (req, res) => {
+//     res.send("Server is up!");
+// });
 
 app.post("/pdf", upload.array("files"), compile("pdf"));
 app.post("/svg", upload.array("files"), compile("svg"));
 
-app.get("/pdf", (req, res) => {
+// Get at any url, use path as file name, and compile it to pdf if it exists
+app.get("/:file", (req, res) => {
     // Get GET param file
-    const file = req.query.file as string;
+    const file = req.params.file as string;
+
     if (!file) {
         res.status(400).send("Bad Request");
         return;
     }
 
+    // Check, that the file does not point outside of the files directory
+    const normalizedPath = path.resolve(TEPLATES_PATH + "/" + file);
+    const currentDir = path.resolve(TEPLATES_PATH);
+    if (!normalizedPath.startsWith(currentDir)) {
+        res.status(400).send("Bad Request");
+        return;
+    }
+
+    // Get file extension
+    const ext = path.extname(file);
+    const baseName = path.basename(file, ext);
+
     // Detect, if files/prebuilt/{file}.pdf exists and is newer than files/{file}.typ
     // If not, compile files/{file}.typ to files/prebuilt/{file}.pdf
-    const mainFile = FILES_PATH + "/" + file + ".typ";
+    const mainFile = TEPLATES_PATH + "/" + baseName + ".typ";
     if (!fs.existsSync(mainFile)) {
         res.status(404).send("Not Found");
         return;
     }
 
-    const prebuiltFile = PREBUILT_PATH + "/" + file + ".pdf";
+    const prebuiltFile = PREBUILT_PATH + "/" + baseName + ext;
 
     if (
         !fs.existsSync(prebuiltFile) ||
@@ -120,9 +135,22 @@ app.get("/pdf", (req, res) => {
         const compiler = NodeCompiler.create({
             workspace: FILES_PATH,
         });
-        const result = compiler.pdf({
-            mainFilePath: mainFile,
-        });
+        let result;
+        if (ext === ".pdf") {
+            result = compiler.pdf({
+                mainFilePath: mainFile,
+            });
+            res.setHeader("Content-Type", "application/pdf");
+        } else if (ext === ".svg") {
+            result = compiler.svg({
+                mainFilePath: mainFile,
+            });
+            res.setHeader("Content-Type", "image/svg+xml");
+        } else {
+            res.status(400).send("Bad Request");
+            return;
+        }
+
         // Make sure the target directory exists
         const directory = path.dirname(prebuiltFile);
         if (!fs.existsSync(directory)) {
@@ -132,7 +160,6 @@ app.get("/pdf", (req, res) => {
         fs.writeFileSync(prebuiltFile, result as any);
     }
 
-    res.setHeader("Content-Type", "application/pdf");
     // Get absolute path of prebuiltFile
     const absolutePath = path.resolve(prebuiltFile);
     res.sendFile(absolutePath);
