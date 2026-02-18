@@ -96,10 +96,9 @@ app.post("/", (req, res) => {
 app.post("/pdf", upload.array("files"), compile("pdf"));
 app.post("/svg", upload.array("files"), compile("svg"));
 
-// Get at any url, use path as file name, and compile it to pdf if it exists
-app.get("/:file", (req, res) => {
+app.get("/:file*", (req, res) => {
     // Get GET param file
-    const file = req.params.file as string;
+    const file = (req.params as any as { file: string }).file;
 
     if (!file) {
         res.status(400).send("Bad Request");
