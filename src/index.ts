@@ -72,6 +72,12 @@ function compile(format: "pdf" | "svg") {
                     });
                     res.setHeader("Content-Type", "image/svg+xml");
                     break;
+                case "html":
+                    result = compiler.html({
+                        mainFilePath: FILES_PATH + "/" + mainFile,
+                    });
+                    res.setHeader("Content-Type", "text/html");
+                    break;
             }
             res.send(result);
         } catch (e) {
@@ -95,6 +101,7 @@ app.post("/", (req, res) => {
 
 app.post("/pdf", upload.array("files"), compile("pdf"));
 app.post("/svg", upload.array("files"), compile("svg"));
+app.post("/html", upload.array("files"), compile("html"));
 
 app.get("/*", (req, res) => {
     // Get GET param file
@@ -145,6 +152,11 @@ app.get("/*", (req, res) => {
                 mainFilePath: mainFile,
             });
             res.setHeader("Content-Type", "image/svg+xml");
+        } else if (ext === ".html") {
+            result = compiler.html({
+                mainFilePath: mainFile,
+            });
+            res.setHeader("Content-Type", "text/html");
         } else {
             res.status(400).send("Bad Request");
             return;
