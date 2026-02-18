@@ -96,9 +96,9 @@ app.post("/", (req, res) => {
 app.post("/pdf", upload.array("files"), compile("pdf"));
 app.post("/svg", upload.array("files"), compile("svg"));
 
-app.get("/:file*", (req, res) => {
+app.get("/*", (req, res) => {
     // Get GET param file
-    const file = (req.params as any as { file: string }).file;
+    const file = (req.params as { "0": string })["0"];
 
     if (!file) {
         res.status(400).send("Bad Request");
@@ -115,7 +115,7 @@ app.get("/:file*", (req, res) => {
 
     // Get file extension
     const ext = path.extname(file);
-    const baseName = path.basename(file, ext);
+    const baseName = file.replace(ext, "");
 
     // Detect, if files/prebuilt/{file}.pdf exists and is newer than files/{file}.typ
     // If not, compile files/{file}.typ to files/prebuilt/{file}.pdf
