@@ -9,6 +9,7 @@ import path from "path";
 
 dotenv.config();
 
+const STATIC_PATH = "./static";
 const FILES_PATH = "./files";
 const TEPLATES_PATH = FILES_PATH + "/templates";
 const TEMP_PATH = FILES_PATH + "/upload";
@@ -117,6 +118,13 @@ app.get("/*", (req, res) => {
     const currentDir = path.resolve(TEPLATES_PATH);
     if (!normalizedPath.startsWith(currentDir)) {
         res.status(400).send("Bad Request");
+        return;
+    }
+
+    // If the file exists in the /static directory, serve it directly
+    const staticFile = STATIC_PATH + "/" + file;
+    if (fs.existsSync(staticFile)) {
+        res.sendFile(path.resolve(staticFile));
         return;
     }
 
