@@ -151,38 +151,43 @@ app.get("/*", (req, res) => {
         fs.statSync(prebuiltFile).mtime < fs.statSync(mainFile).mtime ||
         data
     ) {
-        const compiler = NodeCompiler.create({
-            workspace: FILES_PATH,
-            inputs: data ? { data } : undefined,
-        });
-        let result;
-        if (ext === ".pdf") {
-            result = compiler.pdf({
-                mainFilePath: mainFile,
+        try {
+            const compiler = NodeCompiler.create({
+                workspace: FILES_PATH,
+                inputs: data ? { data } : undefined,
             });
-            res.setHeader("Content-Type", "application/pdf");
-        } else if (ext === ".svg") {
-            result = compiler.svg({
-                mainFilePath: mainFile,
-            });
-            res.setHeader("Content-Type", "image/svg+xml");
-        } else if (ext === ".html") {
-            result = compiler.html({
-                mainFilePath: mainFile,
-            });
-            res.setHeader("Content-Type", "text/html");
-        } else {
-            res.status(400).send("Bad Request");
+            let result;
+            if (ext === ".pdf") {
+                result = compiler.pdf({
+                    mainFilePath: mainFile,
+                });
+                res.setHeader("Content-Type", "application/pdf");
+            } else if (ext === ".svg") {
+                result = compiler.svg({
+                    mainFilePath: mainFile,
+                });
+                res.setHeader("Content-Type", "image/svg+xml");
+            } else if (ext === ".html") {
+                result = compiler.html({
+                    mainFilePath: mainFile,
+                });
+                res.setHeader("Content-Type", "text/html");
+            } else {
+                res.status(400).send("Bad Request");
+                return;
+            }
+
+            // Make sure the target directory exists
+            const directory = path.dirname(data ? tempFile : prebuiltFile);
+            if (!fs.existsSync(directory)) {
+                fs.mkdirSync(directory, { recursive: true });
+            }
+
+            fs.writeFileSync(data ? tempFile : prebuiltFile, result as any);
+        } catch (e) {
+            res.status(500).send(e);
             return;
         }
-
-        // Make sure the target directory exists
-        const directory = path.dirname(data ? tempFile : prebuiltFile);
-        if (!fs.existsSync(directory)) {
-            fs.mkdirSync(directory, { recursive: true });
-        }
-
-        fs.writeFileSync(data ? tempFile : prebuiltFile, result as any);
     }
 
     // Get absolute path of prebuiltFile or tempFile
