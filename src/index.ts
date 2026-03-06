@@ -12,8 +12,9 @@ dotenv.config();
 const STATIC_PATH = "./static";
 const FILES_PATH = "./files";
 const TEPLATES_PATH = FILES_PATH + "/templates";
-const TEMP_PATH = FILES_PATH + "/upload";
+const UPLOAD_PATH = FILES_PATH + "/upload";
 const PREBUILT_PATH = FILES_PATH + "/prebuilt";
+const TEMP_PATH = FILES_PATH + "/temp";
 const TOKEN = process.env.TOKEN;
 
 const app: Express = express();
@@ -28,7 +29,7 @@ app.use(cors());
 
 const storage = multer.diskStorage({
     destination: function (req, file, callback) {
-        callback(null, TEMP_PATH);
+        callback(null, UPLOAD_PATH);
     },
     filename: function (req, file, callback) {
         callback(null, file.originalname);
@@ -132,8 +133,7 @@ app.get("/*", (req, res) => {
     const ext = path.extname(file);
     const baseName = file.replace(ext, "");
 
-    // Detect, if files/prebuilt/{file}.pdf exists and is newer than files/{file}.typ
-    // If not, compile files/{file}.typ to files/prebuilt/{file}.pdf
+    // Detect, if files/{file}.typ exists. If not, return 404
     const mainFile = TEPLATES_PATH + "/" + baseName + ".typ";
     if (!fs.existsSync(mainFile)) {
         res.status(404).send("Not Found");
@@ -141,13 +141,19 @@ app.get("/*", (req, res) => {
     }
 
     const prebuiltFile = PREBUILT_PATH + "/" + baseName + ext;
+    const tempFile = TEMP_PATH + "/" + baseName + "_" + Date.now() + ext;
+
+    // Check if GET param "data" is set
+    const data = req.query.data as string | undefined;
 
     if (
         !fs.existsSync(prebuiltFile) ||
-        fs.statSync(prebuiltFile).mtime < fs.statSync(mainFile).mtime
+        fs.statSync(prebuiltFile).mtime < fs.statSync(mainFile).mtime ||
+        data
     ) {
         const compiler = NodeCompiler.create({
             workspace: FILES_PATH,
+            inputs: data ? { data } : undefined,
         });
         let result;
         if (ext === ".pdf") {
@@ -171,17 +177,21 @@ app.get("/*", (req, res) => {
         }
 
         // Make sure the target directory exists
-        const directory = path.dirname(prebuiltFile);
+        const directory = path.dirname(data ? tempFile : prebuiltFile);
         if (!fs.existsSync(directory)) {
             fs.mkdirSync(directory, { recursive: true });
         }
 
-        fs.writeFileSync(prebuiltFile, result as any);
+        fs.writeFileSync(data ? tempFile : prebuiltFile, result as any);
     }
 
-    // Get absolute path of prebuiltFile
-    const absolutePath = path.resolve(prebuiltFile);
-    res.sendFile(absolutePath);
+    // Get absolute path of prebuiltFile or tempFile
+    const absolutePath = path.resolve(data ? tempFile : prebuiltFile);
+    res.sendFile(absolutePath, () => {
+        if (data) {
+            fs.unlinkSync(absolutePath);
+        }
+    });
 });
 
 httpServer.listen(port, "0.0.0.0", () => {
