@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import express, { Express, Request, Response } from "express";
 import fs from "fs";
 import http from "http";
+import { JSDOM } from "jsdom";
 import multer from "multer";
 import path from "path";
 
@@ -43,7 +44,41 @@ const upload = multer({
     },
 });
 
-function compile(format: "pdf" | "svg") {
+function getPageSVG(svg: string, page: number): string {
+    // - Parse the SVG DOM
+    // - find the <g> elements with class="typst-page"
+    // - remove all elements except the page-th <g> element
+    // - for the page-th <g> element, remove the transform attribute
+    // - extract data-page-width and data-page-height attributes from the page-th <g> element and set them as viewport, width, height, data-width and data-height attributes of the root <svg> element
+    // - return the whole document as string
+    const parser = new JSDOM(svg, { contentType: "image/svg+xml" });
+    const doc = parser.window.document;
+    const pages = doc.querySelectorAll("g.typst-page");
+    if (page < 1 || page > pages.length) {
+        throw new Error("Page number out of range");
+    }
+    const pageElement = pages[page - 1];
+    pages.forEach((p, index) => {
+        if (index !== page - 1) {
+            p.remove();
+        } else {
+            p.removeAttribute("transform");
+        }
+    });
+    const svgElement = doc.documentElement;
+    const pageWidth = pageElement.getAttribute("data-page-width");
+    const pageHeight = pageElement.getAttribute("data-page-height");
+    if (pageWidth && pageHeight) {
+        svgElement.setAttribute("viewBox", `0 0 ${pageWidth} ${pageHeight}`);
+        svgElement.setAttribute("width", pageWidth);
+        svgElement.setAttribute("height", pageHeight);
+        svgElement.setAttribute("data-width", pageWidth);
+        svgElement.setAttribute("data-height", pageHeight);
+    }
+    return doc.documentElement.outerHTML;
+}
+
+function compile(format: "pdf" | "svg" | "html") {
     return (req: Request, res: Response) => {
         const files = req.files as Express.Multer.File[];
         console.log(files);
@@ -101,6 +136,7 @@ app.post("/", (req, res) => {
 //     res.send("Server is up!");
 // });
 
+// Legacy support
 app.post("/pdf", upload.array("files"), compile("pdf"));
 app.post("/svg", upload.array("files"), compile("svg"));
 app.post("/html", upload.array("files"), compile("html"));
@@ -146,10 +182,17 @@ app.get("/*", (req, res) => {
     // Check if GET param "data" is set
     const data = req.query.data as string | undefined;
 
+    // Check if the param "page" is set
+    const page = req.query.page
+        ? parseInt(req.query.page as string)
+        : undefined;
+
+    const shouldUseTempFile = data || page !== undefined;
+
     if (
         !fs.existsSync(prebuiltFile) ||
         fs.statSync(prebuiltFile).mtime < fs.statSync(mainFile).mtime ||
-        data
+        shouldUseTempFile
     ) {
         try {
             const compiler = NodeCompiler.create({
@@ -166,6 +209,14 @@ app.get("/*", (req, res) => {
                 result = compiler.svg({
                     mainFilePath: mainFile,
                 });
+                if (page !== undefined) {
+                    try {
+                        result = getPageSVG(result, page);
+                    } catch (e) {
+                        res.status(400).send(e);
+                        return;
+                    }
+                }
                 res.setHeader("Content-Type", "image/svg+xml");
             } else if (ext === ".html") {
                 result = compiler.html({
@@ -178,12 +229,17 @@ app.get("/*", (req, res) => {
             }
 
             // Make sure the target directory exists
-            const directory = path.dirname(data ? tempFile : prebuiltFile);
+            const directory = path.dirname(
+                shouldUseTempFile ? tempFile : prebuiltFile,
+            );
             if (!fs.existsSync(directory)) {
                 fs.mkdirSync(directory, { recursive: true });
             }
 
-            fs.writeFileSync(data ? tempFile : prebuiltFile, result as any);
+            fs.writeFileSync(
+                shouldUseTempFile ? tempFile : prebuiltFile,
+                result as any,
+            );
         } catch (e) {
             res.status(500).send(e);
             return;
@@ -191,7 +247,9 @@ app.get("/*", (req, res) => {
     }
 
     // Get absolute path of prebuiltFile or tempFile
-    const absolutePath = path.resolve(data ? tempFile : prebuiltFile);
+    const absolutePath = path.resolve(
+        shouldUseTempFile ? tempFile : prebuiltFile,
+    );
     res.sendFile(absolutePath, () => {
         if (data) {
             fs.unlinkSync(absolutePath);
