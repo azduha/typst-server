@@ -187,12 +187,12 @@ app.get("/*", (req, res) => {
         ? parseInt(req.query.page as string)
         : undefined;
 
-    const shouldUseTempFile = data || page !== undefined;
+    const useTempFile = data || page !== undefined;
 
     if (
         !fs.existsSync(prebuiltFile) ||
         fs.statSync(prebuiltFile).mtime < fs.statSync(mainFile).mtime ||
-        shouldUseTempFile
+        useTempFile
     ) {
         try {
             const compiler = NodeCompiler.create({
@@ -230,14 +230,14 @@ app.get("/*", (req, res) => {
 
             // Make sure the target directory exists
             const directory = path.dirname(
-                shouldUseTempFile ? tempFile : prebuiltFile,
+                useTempFile ? tempFile : prebuiltFile,
             );
             if (!fs.existsSync(directory)) {
                 fs.mkdirSync(directory, { recursive: true });
             }
 
             fs.writeFileSync(
-                shouldUseTempFile ? tempFile : prebuiltFile,
+                useTempFile ? tempFile : prebuiltFile,
                 result as any,
             );
         } catch (e) {
@@ -247,11 +247,9 @@ app.get("/*", (req, res) => {
     }
 
     // Get absolute path of prebuiltFile or tempFile
-    const absolutePath = path.resolve(
-        shouldUseTempFile ? tempFile : prebuiltFile,
-    );
+    const absolutePath = path.resolve(useTempFile ? tempFile : prebuiltFile);
     res.sendFile(absolutePath, () => {
-        if (data) {
+        if (useTempFile) {
             fs.unlinkSync(absolutePath);
         }
     });
