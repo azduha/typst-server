@@ -12,7 +12,7 @@ dotenv.config();
 
 const STATIC_PATH = "./static";
 const FILES_PATH = "./files";
-const TEPLATES_PATH = FILES_PATH + "/templates";
+const TEMPLATES_PATH = FILES_PATH + "/templates";
 const UPLOAD_PATH = FILES_PATH + "/upload";
 const PREBUILT_PATH = FILES_PATH + "/prebuilt";
 const TEMP_PATH = FILES_PATH + "/temp";
@@ -151,8 +151,8 @@ app.get("/*", (req, res) => {
     }
 
     // Check, that the file does not point outside of the files directory
-    const normalizedPath = path.resolve(TEPLATES_PATH + "/" + file);
-    const currentDir = path.resolve(TEPLATES_PATH);
+    const normalizedPath = path.resolve(TEMPLATES_PATH + "/" + file);
+    const currentDir = path.resolve(TEMPLATES_PATH);
     if (!normalizedPath.startsWith(currentDir)) {
         res.status(400).send("Bad Request");
         return;
@@ -170,22 +170,23 @@ app.get("/*", (req, res) => {
     const baseName = file.replace(ext, "");
 
     // Detect, if files/{file}.typ exists. If not, return 404
-    const mainFile = TEPLATES_PATH + "/" + baseName + ".typ";
+    const mainFile = TEMPLATES_PATH + "/" + baseName + ".typ";
     if (!fs.existsSync(mainFile)) {
         res.status(404).send("Not Found");
         return;
     }
 
-    const prebuiltFile = PREBUILT_PATH + "/" + baseName + ext;
-    const tempFile = TEMP_PATH + "/" + baseName + "_" + Date.now() + ext;
-
-    // Check if GET param "data" is set
-    const data = req.query.data as string | undefined;
-
     // Check if the param "page" is set
     const page = req.query.page
         ? parseInt(req.query.page as string)
         : undefined;
+
+    const prebuiltFile =
+        PREBUILT_PATH + "/" + baseName + ext + (page ? `.${page}` : "");
+    const tempFile = TEMP_PATH + "/" + baseName + "_" + Date.now() + ext;
+
+    // Check if GET param "data" is set
+    const data = req.query.data as string | undefined;
 
     const useTempFile = data;
 
@@ -209,6 +210,9 @@ app.get("/*", (req, res) => {
                 result = compiler.svg({
                     mainFilePath: mainFile,
                 });
+                if (page !== undefined) {
+                    result = getPageSVG(result as string, page);
+                }
                 res.setHeader("Content-Type", "image/svg+xml");
             } else if (ext === ".html") {
                 result = compiler.html({
@@ -240,26 +244,11 @@ app.get("/*", (req, res) => {
 
     // Get absolute path of prebuiltFile or tempFile
     const absolutePath = path.resolve(useTempFile ? tempFile : prebuiltFile);
-
-    if (page !== undefined && ext === ".svg") {
-        try {
-            const fileContent = fs.readFileSync(absolutePath, "utf-8");
-            const result = getPageSVG(fileContent, page);
-            res.send(result);
-            if (useTempFile) {
-                fs.unlinkSync(absolutePath);
-            }
-        } catch (e) {
-            res.status(400).send(e);
-            return;
+    res.sendFile(absolutePath, () => {
+        if (useTempFile) {
+            fs.unlinkSync(absolutePath);
         }
-    } else {
-        res.sendFile(absolutePath, () => {
-            if (useTempFile) {
-                fs.unlinkSync(absolutePath);
-            }
-        });
-    }
+    });
 });
 
 httpServer.listen(port, "0.0.0.0", () => {
