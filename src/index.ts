@@ -187,7 +187,7 @@ app.get("/*", (req, res) => {
         ? parseInt(req.query.page as string)
         : undefined;
 
-    const useTempFile = data || page !== undefined;
+    const useTempFile = data;
 
     if (
         !fs.existsSync(prebuiltFile) ||
@@ -209,14 +209,6 @@ app.get("/*", (req, res) => {
                 result = compiler.svg({
                     mainFilePath: mainFile,
                 });
-                if (page !== undefined) {
-                    try {
-                        result = getPageSVG(result, page);
-                    } catch (e) {
-                        res.status(400).send(e);
-                        return;
-                    }
-                }
                 res.setHeader("Content-Type", "image/svg+xml");
             } else if (ext === ".html") {
                 result = compiler.html({
@@ -248,11 +240,26 @@ app.get("/*", (req, res) => {
 
     // Get absolute path of prebuiltFile or tempFile
     const absolutePath = path.resolve(useTempFile ? tempFile : prebuiltFile);
-    res.sendFile(absolutePath, () => {
-        if (useTempFile) {
-            fs.unlinkSync(absolutePath);
+
+    if (page !== undefined && ext === ".svg") {
+        try {
+            const fileContent = fs.readFileSync(absolutePath, "utf-8");
+            const result = getPageSVG(fileContent, page);
+            res.send(result);
+            if (useTempFile) {
+                fs.unlinkSync(absolutePath);
+            }
+        } catch (e) {
+            res.status(400).send(e);
+            return;
         }
-    });
+    } else {
+        res.sendFile(absolutePath, () => {
+            if (useTempFile) {
+                fs.unlinkSync(absolutePath);
+            }
+        });
+    }
 });
 
 httpServer.listen(port, "0.0.0.0", () => {
