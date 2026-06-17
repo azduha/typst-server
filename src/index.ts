@@ -244,11 +244,25 @@ app.get("/*", (req, res) => {
 
     // Get absolute path of prebuiltFile or tempFile
     const absolutePath = path.resolve(useTempFile ? tempFile : prebuiltFile);
-    res.sendFile(absolutePath, () => {
-        if (useTempFile) {
-            fs.unlinkSync(absolutePath);
-        }
-    });
+    res.sendFile(
+        absolutePath,
+        {
+            headers: {
+                "Cache-Control": "no-cache",
+                "Content-Type":
+                    {
+                        ".pdf": "application/pdf",
+                        ".svg": "image/svg+xml",
+                        ".html": "text/html",
+                    }[ext] || "application/octet-stream",
+            },
+        },
+        () => {
+            if (useTempFile) {
+                fs.unlinkSync(absolutePath);
+            }
+        },
+    );
 });
 
 httpServer.listen(port, "0.0.0.0", () => {
