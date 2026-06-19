@@ -141,7 +141,123 @@ app.post("/pdf", upload.array("files"), compile("pdf"));
 app.post("/svg", upload.array("files"), compile("svg"));
 app.post("/html", upload.array("files"), compile("html"));
 
+const sendForm = (form: string, req: Request, res: Response) => {
+    // Generate a simple plain HTML form with inputs defined in the form parameter as JSON (e.g. {"name": {"type": "text", "label": "Name"}, "age": {"type": "number", "label": "Age"}})
+    // For additional get parameters, add them as hidden inputs to the form
+    // The submit should lead to the same URL with the same GET parameters, but without the "form" parameter (GET)
+
+    const formInputs = JSON.parse(form);
+
+    const existingData = (req.query.data as string) || "{}";
+    const additionalParams = Object.entries(req.query)
+        .filter(([key]) => key !== "form" && key !== "data")
+        .map(
+            ([key, value]) =>
+                `<input type="hidden" name="${key}" value="${value}">`,
+        )
+        .join("\n");
+
+    const formHtml = `
+        <!DOCTYPE html>
+        <html lang="en" data-theme="light">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Typst Form</title>
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+            <style>
+                :root {
+                    --pico-font-size: 100%;
+                }
+                body {
+                    min-height: 100vh;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+                    padding: 2rem;
+                }
+                .form-card {
+                    background: white;
+                    border-radius: 12px;
+                    padding: 2.5rem;
+                    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.06);
+                    width: 100%;
+                    max-width: 480px;
+                }
+                .form-card h1 {
+                    margin-bottom: 1.5rem;
+                    text-align: center;
+                    color: var(--pico-primary);
+                }
+                .form-card form {
+                    margin-bottom: 0;
+                }
+                .form-card input[type="submit"] {
+                    width: 100%;
+                    margin-top: 0.5rem;
+                }
+            </style>
+        </head>
+        <body>
+            <main class="form-card">
+                <h1>Doplnění údajů</h1>
+                <form method="GET" action="${req.path}" id="typst-form">
+                    ${additionalParams}
+                    ${(
+                        Object.entries(formInputs) as [
+                            string,
+                            { type: string; label: string },
+                        ][]
+                    )
+                        .map(
+                            ([name, { type, label }]) =>
+                                `<label for="${name}">${label}<input type="${type}" name="${name}" id="${name}" placeholder="${label}"></label>`,
+                        )
+                        .join("\n")}
+                    <input type="submit" value="Vygeneruj dokument">
+                </form>
+            </main>
+            <script>
+                document.getElementById("typst-form").addEventListener("submit", function(e) {
+                    e.preventDefault();
+                    const form = e.target;
+                    const formData = new FormData(form);
+                    const formInputKeys = ${JSON.stringify(Object.keys(formInputs))};
+                    const data = JSON.parse(${JSON.stringify(existingData)});
+                    for (const key of formInputKeys) {
+                        const value = formData.get(key);
+                        if (value) {
+                            data[key] = value;
+                        }
+                    }
+                    const params = new URLSearchParams();
+                    for (const [key, value] of formData.entries()) {
+                        if (key !== "data" && !formInputKeys.includes(key)) {
+                            params.append(key, value);
+                        }
+                    }
+                    if (Object.keys(data).length > 0) {
+                        params.append("data", JSON.stringify(data));
+                    }
+                    window.location.href = form.action + "?" + params.toString();
+                });
+            </script>
+        </body>
+        </html>
+    `;
+
+    res.send(formHtml);
+};
+
 app.get("/*", (req, res) => {
+    // Check if GET param "form" is set
+    const form = req.query.form as string | undefined;
+    if (form) {
+        sendForm(form, req, res);
+        return;
+    }
+
     // Get GET param file
     const file = (req.params as { "0": string })["0"];
 
